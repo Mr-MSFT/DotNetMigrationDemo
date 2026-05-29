@@ -302,7 +302,7 @@ if (-not $SkipPrerequisites) {
         $wdInstaller = "$env:TEMP\WebDeploy_amd64_en-US.msi"
         $wdLogPath   = "C:\Temp\WebDeploy-Install.log"
         Invoke-WebRequest `
-            -Uri 'https://github.com/Mr-MSFT/Training/raw/refs/heads/main/WebDeploy_amd64_en-US.msi' `
+            -Uri 'https://github.com/Mr-MSFT/DotNetMigrationDemo/raw/refs/heads/main/WebDeploy_amd64_en-US.msi' `
             -OutFile $wdInstaller -UseBasicParsing
         Write-Host "    Installing Web Deploy 4.0 (all components)..." -ForegroundColor Gray
         $wdArgs = @(
