@@ -129,25 +129,6 @@
       "type": "string",
       "defaultValue": "[concat('st', uniqueString(resourceGroup().id))]",
       "metadata": { "description": "Name of the storage account (lowercase letters and numbers, 3-24 characters)." }
-    },
-    "sqlMiAadAdminLogin": {
-      "type": "string",
-      "metadata": { "description": "Login name (UPN or group name) of the Entra ID administrator for the SQL Managed Instance." }
-    },
-    "sqlMiAadAdminObjectId": {
-      "type": "string",
-      "metadata": { "description": "Object ID (GUID) of the Entra ID user or group to set as SQL MI administrator." }
-    },
-    "sqlMiAadTenantId": {
-      "type": "string",
-      "defaultValue": "[tenant().tenantId]",
-      "metadata": { "description": "Entra ID tenant ID. Defaults to the current tenant." }
-    },
-    "sqlMiAadAdminPrincipalType": {
-      "type": "string",
-      "defaultValue": "User",
-      "allowedValues": ["User", "Group", "Application"],
-      "metadata": { "description": "Principal type of the Entra ID administrator (User, Group, or Application)." }
     }
   },
   "variables": {
@@ -640,15 +621,7 @@
         "minimalTlsVersion": "1.2",
         "backupStorageRedundancy": "Local",
         "sqlServerVersion": "SQL Server 2025",
-        "updatePolicy": "SQL Server 2025",
-        "administrators": {
-          "administratorType": "ActiveDirectory",
-          "principalType": "[parameters('sqlMiAadAdminPrincipalType')]",
-          "login": "[parameters('sqlMiAadAdminLogin')]",
-          "sid": "[parameters('sqlMiAadAdminObjectId')]",
-          "tenantId": "[parameters('sqlMiAadTenantId')]",
-          "azureADOnlyAuthentication": true
-        }
+        "updatePolicy": "SQL Server 2025"
       }
     },
     {
