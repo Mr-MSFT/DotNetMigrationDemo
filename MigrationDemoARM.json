@@ -1,0 +1,656 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "adminUsername": {
+      "type": "string",
+      "metadata": { "description": "Local administrator username for both VMs." }
+    },
+    "adminPassword": {
+      "type": "secureString",
+      "metadata": { "description": "Local administrator password for both VMs." }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": { "description": "Location for all resources. Defaults to the resource group's location." }
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_D4s_v5",
+      "metadata": { "description": "VM size for both VMs." }
+    },
+    "vm2CustomScriptUri": {
+      "type": "string",
+      "defaultValue": "https://github.com/Mr-MSFT/DotNetMigrationDemo/raw/refs/heads/main/BankApp-Deploy.ps1",
+      "metadata": {
+        "description": "Full URI of the custom script extension script for VM2 (SQLServer)."
+      }
+    },
+    "vnetAddressPrefix": { "type": "string", "defaultValue": "10.50.0.0/16" },
+    "vmSubnetPrefix": { "type": "string", "defaultValue": "10.50.1.0/24" },
+    "bastionSubnetPrefix": {
+      "type": "string",
+      "defaultValue": "10.50.2.0/27",
+      "metadata": { "description": "AzureBastionSubnet prefix (commonly /27 or larger)." }
+    },
+    "sqlMiSubnetPrefix": {
+      "type": "string",
+      "defaultValue": "10.50.3.0/24",
+      "metadata": { "description": "Address prefix for the SQL Managed Instance dedicated subnet." }
+    },
+    "appSubnetPrefix": {
+      "type": "string",
+      "defaultValue": "10.50.4.0/24",
+      "metadata": { "description": "Address prefix for the App Service VNet integration subnet (minimum /26)." }
+    },
+
+    "vnetName": {
+      "type": "string",
+      "defaultValue": "[concat('vnet-', uniqueString(resourceGroup().id))]",
+      "metadata": { "description": "Name of the virtual network." }
+    },
+    "vmSubnetName": {
+      "type": "string",
+      "defaultValue": "vm-subnet",
+      "metadata": { "description": "Name of the VM subnet." }
+    },
+    "bastionSubnetName": {
+      "type": "string",
+      "defaultValue": "AzureBastionSubnet",
+      "metadata": { "description": "Name of the Bastion subnet. Must be 'AzureBastionSubnet'." }
+    },
+    "nsgName": {
+      "type": "string",
+      "defaultValue": "[concat('nsg-vm-', uniqueString(resourceGroup().id))]",
+      "metadata": { "description": "Name of the VM subnet network security group." }
+    },
+    "bastionName": {
+      "type": "string",
+      "defaultValue": "[concat('bastion-', uniqueString(resourceGroup().id))]",
+      "metadata": { "description": "Name of the Azure Bastion host." }
+    },
+    "bastionPipName": {
+      "type": "string",
+      "defaultValue": "[concat('pip-bastion-', uniqueString(resourceGroup().id))]",
+      "metadata": { "description": "Name of the Bastion public IP address." }
+    },
+    "natGatewayName": {
+      "type": "string",
+      "defaultValue": "[concat('natgw-', uniqueString(resourceGroup().id))]",
+      "metadata": { "description": "Name of the NAT Gateway." }
+    },
+    "natGatewayPipName": {
+      "type": "string",
+      "defaultValue": "[concat('pip-natgw-', uniqueString(resourceGroup().id))]",
+      "metadata": { "description": "Name of the NAT Gateway public IP address." }
+    },
+    "vm2Name": {
+      "type": "string",
+      "defaultValue": "DemoAppVM",
+      "metadata": { "description": "Name of the virtual machine." }
+    },
+    "sqlMiSubnetName": {
+      "type": "string",
+      "defaultValue": "sqlmi-subnet",
+      "metadata": { "description": "Name of the SQL Managed Instance subnet." }
+    },
+    "sqlMiNsgName": {
+      "type": "string",
+      "defaultValue": "[concat('nsg-sqlmi-', uniqueString(resourceGroup().id))]",
+      "metadata": { "description": "Name of the SQL Managed Instance network security group." }
+    },
+    "sqlMiName": {
+      "type": "string",
+      "defaultValue": "[concat('sqlmi-', uniqueString(resourceGroup().id))]",
+      "metadata": { "description": "Name of the SQL Managed Instance." }
+    },
+    "sqlMiRouteTableName": {
+      "type": "string",
+      "defaultValue": "[concat('rt-sqlmi-', uniqueString(resourceGroup().id))]",
+      "metadata": { "description": "Name of the SQL Managed Instance route table." }
+    },
+    "appSubnetName": {
+      "type": "string",
+      "defaultValue": "app-subnet",
+      "metadata": { "description": "Name of the App Service VNet integration subnet." }
+    },
+    "appPlanName": {
+      "type": "string",
+      "defaultValue": "[concat('plan-', uniqueString(resourceGroup().id))]",
+      "metadata": { "description": "Name of the App Service plan." }
+    },
+    "appServiceName": {
+      "type": "string",
+      "defaultValue": "[concat('app-', uniqueString(resourceGroup().id))]",
+      "metadata": { "description": "Name of the App Service." }
+    },
+    "storageAccountName": {
+      "type": "string",
+      "defaultValue": "[concat('st', uniqueString(resourceGroup().id))]",
+      "metadata": { "description": "Name of the storage account (lowercase letters and numbers, 3-24 characters)." }
+    }
+  },
+  "variables": {
+    "vnetName": "[parameters('vnetName')]",
+    "vmSubnetName": "[parameters('vmSubnetName')]",
+    "bastionSubnetName": "[parameters('bastionSubnetName')]",
+    "nsgName": "[parameters('nsgName')]",
+
+    "bastionName": "[parameters('bastionName')]",
+    "bastionPipName": "[parameters('bastionPipName')]",
+
+    "natGatewayName": "[parameters('natGatewayName')]",
+    "natGatewayPipName": "[parameters('natGatewayPipName')]",
+
+    "vm2Name": "[parameters('vm2Name')]",
+    "nic2Name": "[concat('nic-', parameters('vm2Name'))]",
+
+    "osDiskType": "Premium_LRS",
+
+    "vm2ScriptFileName": "[last(split(parameters('vm2CustomScriptUri'), '/'))]",
+
+    "sqlMiSubnetName": "[parameters('sqlMiSubnetName')]",
+    "sqlMiNsgName": "[parameters('sqlMiNsgName')]",
+    "sqlMiName": "[parameters('sqlMiName')]",
+    "sqlMiRouteTableName": "[parameters('sqlMiRouteTableName')]",
+
+    "appSubnetName": "[parameters('appSubnetName')]",
+    "appPlanName": "[parameters('appPlanName')]",
+    "appServiceName": "[parameters('appServiceName')]",
+
+    "storageAccountName": "[parameters('storageAccountName')]",
+
+    "ws2025Image": {
+      "publisher": "MicrosoftWindowsServer",
+      "offer": "WindowsServer",
+      "sku": "2025-datacenter-g2",
+      "version": "latest"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('nsgName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "Deny-Internet-Inbound",
+            "properties": {
+              "priority": 4096,
+              "access": "Deny",
+              "direction": "Inbound",
+              "protocol": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "*",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "*"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('sqlMiNsgName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "allow-sqlmi-management-inbound",
+            "properties": {
+              "priority": 100,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourceAddressPrefix": "SqlManagement",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRanges": ["9000", "9003", "1438", "1440", "1452"]
+            }
+          },
+          {
+            "name": "allow-azure-load-balancer-inbound",
+            "properties": {
+              "priority": 200,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "*",
+              "sourceAddressPrefix": "AzureLoadBalancer",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "*"
+            }
+          },
+          {
+            "name": "allow-sqlmi-subnet-inbound",
+            "properties": {
+              "priority": 300,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "*",
+              "sourceAddressPrefix": "[parameters('sqlMiSubnetPrefix')]",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "*"
+            }
+          },
+          {
+            "name": "allow-sqlmi-management-outbound",
+            "properties": {
+              "priority": 100,
+              "direction": "Outbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "SqlManagement",
+              "destinationPortRanges": ["80", "443", "12000"]
+            }
+          },
+          {
+            "name": "allow-sqlmi-subnet-outbound",
+            "properties": {
+              "priority": 200,
+              "direction": "Outbound",
+              "access": "Allow",
+              "protocol": "*",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "[parameters('sqlMiSubnetPrefix')]",
+              "destinationPortRange": "*"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('vnetName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('sqlMiNsgName'))]",
+        "[resourceId('Microsoft.Network/natGateways', variables('natGatewayName'))]",
+        "[resourceId('Microsoft.Network/routeTables', variables('sqlMiRouteTableName'))]"
+      ],
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[parameters('vnetAddressPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('vmSubnetName')]",
+            "properties": {
+              "addressPrefix": "[parameters('vmSubnetPrefix')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+              },
+              "natGateway": {
+                "id": "[resourceId('Microsoft.Network/natGateways', variables('natGatewayName'))]"
+              }
+            }
+          },
+          {
+            "name": "[variables('bastionSubnetName')]",
+            "properties": {
+              "addressPrefix": "[parameters('bastionSubnetPrefix')]"
+            }
+          },
+          {
+            "name": "[variables('sqlMiSubnetName')]",
+            "properties": {
+              "addressPrefix": "[parameters('sqlMiSubnetPrefix')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('sqlMiNsgName'))]"
+              },
+              "routeTable": {
+                "id": "[resourceId('Microsoft.Network/routeTables', variables('sqlMiRouteTableName'))]"
+              },
+              "delegations": [
+                {
+                  "name": "sqlMiDelegation",
+                  "properties": {
+                    "serviceName": "Microsoft.Sql/managedInstances"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "[variables('appSubnetName')]",
+            "properties": {
+              "addressPrefix": "[parameters('appSubnetPrefix')]",
+              "delegations": [
+                {
+                  "name": "appServiceDelegation",
+                  "properties": {
+                    "serviceName": "Microsoft.Web/serverFarms"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('bastionPipName')]",
+      "location": "[parameters('location')]",
+      "sku": { "name": "Standard" },
+      "properties": {
+        "publicIPAllocationMethod": "Static"
+      }
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('natGatewayPipName')]",
+      "location": "[parameters('location')]",
+      "sku": { "name": "Standard" },
+      "properties": {
+        "publicIPAllocationMethod": "Static"
+      }
+    },
+    {
+      "type": "Microsoft.Network/natGateways",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('natGatewayName')]",
+      "location": "[parameters('location')]",
+      "sku": { "name": "Standard" },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('natGatewayPipName'))]"
+      ],
+      "properties": {
+        "idleTimeoutInMinutes": 4,
+        "publicIpAddresses": [
+          {
+            "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('natGatewayPipName'))]"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/bastionHosts",
+      "apiVersion": "2025-05-01",
+      "name": "[variables('bastionName')]",
+      "location": "[parameters('location')]",
+      "sku": { "name": "Standard" },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('bastionPipName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "bastion-ipconfig",
+            "properties": {
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('bastionSubnetName'))]"
+              },
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('bastionPipName'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('nic2Name')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('vmSubnetName'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2024-03-01",
+      "name": "[variables('vm2Name')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('nic2Name'))]"
+      ],
+      "properties": {
+        "hardwareProfile": { "vmSize": "[parameters('vmSize')]" },
+        "osProfile": {
+          "computerName": "[variables('vm2Name')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": "[variables('ws2025Image')]",
+          "osDisk": {
+            "createOption": "FromImage",
+            "managedDisk": { "storageAccountType": "[variables('osDiskType')]" }
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            { "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nic2Name'))]" }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "apiVersion": "2022-11-01",
+      "name": "[concat(variables('vm2Name'), '/cse-bootstrap')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', variables('vm2Name'))]"
+      ],
+      "properties": {
+        "publisher": "Microsoft.Compute",
+        "type": "CustomScriptExtension",
+        "typeHandlerVersion": "1.10",
+        "autoUpgradeMinorVersion": true,
+        "settings": {
+          "fileUris": [
+            "[parameters('vm2CustomScriptUri')]"
+          ],
+          "commandToExecute": "[concat('powershell -ExecutionPolicy Bypass -File ', variables('vm2ScriptFileName'), ' -InstallSql2022 true')]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.SqlVirtualMachine/sqlVirtualMachines",
+      "apiVersion": "2022-02-01",
+      "name": "[variables('vm2Name')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', variables('vm2Name'))]",
+        "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('vm2Name'), 'cse-bootstrap')]"
+      ],
+      "properties": {
+        "virtualMachineResourceId": "[resourceId('Microsoft.Compute/virtualMachines', variables('vm2Name'))]",
+        "sqlManagement": "Full",
+        "sqlServerLicenseType": "PAYG",
+        "sqlImageSku": "Developer",
+        "autoPatchingSettings": {
+          "enable": false
+        },
+        "autoBackupSettings": {
+          "enable": false
+        },
+        "keyVaultCredentialSettings": {
+          "enable": false
+        },
+        "serverConfigurationsManagementSettings": {
+          "sqlConnectivityUpdateSettings": {
+            "connectivityType": "PRIVATE",
+            "port": 1433
+          },
+          "sqlWorkloadTypeUpdateSettings": {
+            "sqlWorkloadType": "GENERAL"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2023-01-01",
+      "name": "[variables('appPlanName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "B1",
+        "tier": "Basic"
+      },
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2023-01-01",
+      "name": "[variables('appServiceName')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', variables('appPlanName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",
+        "[resourceId('Microsoft.Sql/managedInstances', variables('sqlMiName'))]"
+      ],
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appPlanName'))]",
+        "virtualNetworkSubnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('appSubnetName'))]",
+        "vnetRouteAllEnabled": true,
+        "httpsOnly": true,
+        "siteConfig": {
+          "netFrameworkVersion": "v4.8",
+          "metadata": [
+            { "name": "CURRENT_STACK", "value": "dotnet" }
+          ],
+          "alwaysOn": false,
+          "connectionStrings": [
+            {
+              "name": "BankPortalDb",
+              "connectionString": "[concat('Server=tcp:', reference(resourceId('Microsoft.Sql/managedInstances', variables('sqlMiName'))).fullyQualifiedDomainName, ';Authentication=Active Directory Default; Database=BankPortalDb;')]",
+              "type": "SQLAzure"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Network/routeTables",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('sqlMiRouteTableName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "disableBgpRoutePropagation": false,
+        "routes": []
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-01-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "kind": "StorageV2",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "properties": {
+        "accessTier": "Hot",
+        "supportsHttpsTrafficOnly": true,
+        "minimumTlsVersion": "TLS1_2",
+        "allowBlobPublicAccess": false
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-01-01",
+      "name": "[concat(variables('storageAccountName'), '/default/sqldbs')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ],
+      "properties": {
+        "publicAccess": "None"
+      }
+    },
+    {
+      "type": "Microsoft.Sql/managedInstances",
+      "apiVersion": "2024-05-01-preview",
+      "name": "[variables('sqlMiName')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "sku": {
+        "name": "GP_Gen5",
+        "tier": "GeneralPurpose"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ],
+      "properties": {
+        "administratorLogin": "[parameters('adminUsername')]",
+        "administratorLoginPassword": "[parameters('adminPassword')]",
+        "vCores": 4,
+        "storageSizeInGB": 32,
+        "licenseType": "LicenseIncluded",
+        "subnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('sqlMiSubnetName'))]",
+        "publicDataEndpointEnabled": false,
+        "minimalTlsVersion": "1.2",
+        "backupStorageRedundancy": "Local",
+        "sqlServerVersion": "SQL Server 2025",
+        "updatePolicy": "SQL Server 2025"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), resourceId('Microsoft.Sql/managedInstances', variables('sqlMiName')), '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1')]",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+        "[resourceId('Microsoft.Sql/managedInstances', variables('sqlMiName'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1')]",
+        "principalId": "[reference(resourceId('Microsoft.Sql/managedInstances', variables('sqlMiName')), '2024-05-01-preview', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    }
+  ],
+  "outputs": {
+    "vm2Name": { "type": "string", "value": "[variables('vm2Name')]" },
+    "vnetName": { "type": "string", "value": "[variables('vnetName')]" },
+    "bastionName": { "type": "string", "value": "[variables('bastionName')]" },
+    "vm2ScriptFileName": { "type": "string", "value": "[variables('vm2ScriptFileName')]" },
+    "sqlMiName": { "type": "string", "value": "[variables('sqlMiName')]" },
+    "sqlMiFqdn": { "type": "string", "value": "[reference(resourceId('Microsoft.Sql/managedInstances', variables('sqlMiName'))).fullyQualifiedDomainName]" },
+    "appServiceName": { "type": "string", "value": "[variables('appServiceName')]" },
+    "appServiceHostname": { "type": "string", "value": "[reference(resourceId('Microsoft.Web/sites', variables('appServiceName'))).defaultHostName]" },
+    "appServicePrincipalId": { "type": "string", "value": "[reference(resourceId('Microsoft.Web/sites', variables('appServiceName')), '2023-01-01', 'Full').identity.principalId]" },
+    "storageAccountName": { "type": "string", "value": "[variables('storageAccountName')]" },
+    "storageAccountBlobEndpoint": { "type": "string", "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))).primaryEndpoints.blob]" }
+  }
+}
