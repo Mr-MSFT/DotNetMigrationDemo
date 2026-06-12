@@ -33,9 +33,13 @@ This section will give general guidance on backing up a SQL database and restori
 3.	In the Azure portal navigate to the SQL Managed Instance resource – **Settings – Microsoft Entra ID** and set the Azure App service’s Managed Identity as the admin.    
 ![Entra](./images/entra.png)
 4.	In the Azure portal create an **Azure Database Migration Service resource**. The configuration for the resources are shown below:
+
+
 ![DMS](./images/dms.png)
 
 ![DMS2](./images/dms2.png)    	 
+
+
 6.	Navigate to the newly created Azure Database Migration Service resource and start a new migration. 
 ![DMS3](./images/dms3.png)  
 7.	The migration should be configured as shown detailed below:
