@@ -7,4 +7,4 @@ The demo .Net application is installed on the App VM virtual machine. It is a ba
 
   1.	[The link here](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FMr-MSFT%2FDotNetMigrationDemo%2Fmain%2FDemoAppMigrationARM.json) can be used to deploy the ARM template via the Azure portal. The ARM template deploys all the necessary resources   for the demo. The resources can take    up to two hours to deploy.
   2.	Log into the App VM via bastion. There will be a link on the desktop named **BankPortal** that launches the demo web application. Take some time to play do some account        transfers and become familiar with the app.
-    ![AppScreen][./images/appscreenshot.png]
+    ![AppScreen](./images/appscreenshot.png)
