@@ -15,7 +15,8 @@ The first thing you should get acquainted with is running assessments on the sou
 # Migrate Application to Azure App Service
 This section provides general guidance on how to export the IIS application and deploy it to the Azure App service instance. The application is purposed built to be able to deploy to Azure App service with no code changes. 
 1.	Navigate to the **Server Manager – Tools – Internet Information Services (IIS) Manager**
-2.	Navigate to the **BankPortal** site, right-click it and select **Deploy – Export Application**. Complete the Export Application wizard.  ![IISExport](./images/iisexport.png)  
+2.	Navigate to the **BankPortal** site, right-click it and select **Deploy – Export Application**. Complete the Export Application wizard. 
+![IISExport](./images/iisexport.png)  
 3.	Extract the ZIP folder you created in the previous step and created another compressed folder that just contains the contents of the Content\BankPortal sub-directory as shown below. This new ZIP will be deployed to the Azure App service instance. ![Zip](./images/zip.png) 
 4.	Navigate to the App service resource in the Azure portal. Navigate to **Development Tools – Advanced Tools** and select **Go->**. ![Kudu](./images/kudu.png)
 5.	In the **Advanced Tools** portal navigate to **Tools – Zip Push Deploy**. Copy the Zip file you created into the window. ![Kudu2](./images/kudu2.png) 
