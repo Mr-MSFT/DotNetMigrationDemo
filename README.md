@@ -9,10 +9,10 @@ The demo .Net application is installed on the App VM virtual machine. It is a ba
 2.	Log into the App VM via bastion. There will be a link on the desktop named **BankPortal** that launches the demo web application. Take some time to play do some account        transfers and become familiar with the app.
     ![AppScreen](./images/appscreenshot.png)
 
-##Source  Code Assessment
+# Source  Code Assessment
 The first thing you should get acquainted with is running assessments on the source code and IIS deployment. The assessments are important because they highlight if there will need to be code changes or changes to the IIS configuration in order to get the application to work in Azure App service. The [Azure Migrate application and code assessment tool](https://learn.microsoft.com/en-us/azure/migrate/appcat/dotnet?view=migrate#install-the-cli-tool) can be used to perform this assessment. The source code is located at **C:\BankPortal**. Generate and review some assessment reports.
 
-##Migrate Application to Azure App Service
+# Migrate Application to Azure App Service
 This section provides general guidance on how to export the IIS application and deploy it to the Azure App service instance. The application is purposed built to be able to deploy to Azure App service with no code changes. 
 1.	Navigate to the **Server Manager – Tools – Internet Information Services (IIS) Manager**
 2.	Navigate to the **BankPortal** site, right-click it and select **Deploy – Export Application**. Complete the Export Application wizard.  ![IISExport](./images/iisexport.png)  
@@ -21,10 +21,10 @@ This section provides general guidance on how to export the IIS application and 
 5.	In the **Advanced Tools** portal navigate to **Tools – Zip Push Deploy**. Copy the Zip file you created into the window. ![Kudu2](./images/kudu2.png) 
 6.	The application is now deployed to the App service resource but will throw errors because it does not have access to its backend SQL database. The next section will give guidance on how to move the SQL database to a SQL Managed Instance that the App Service instance has access to. 
 
-##Migrate SQL DB to SQL Managed Instance
+# Migrate SQL DB to SQL Managed Instance
 This section will give general guidance on backing up a SQL database and restoring it to the deployed SQL Managed Instance.  You should assign your Azure account the **Storage Blob Data Contributor** role on the Storage Account created in the initial Azure deployment. This will ensure your account has the permissions needed to complete the steps below.
 1.	Run the BackUpSQLDB.ps1 Powershell script located in the C:\Temp folder. This script will create a backup of the local SQL database in the C:\Temp folder named BankPortalDB.bak ![Explorer](./images/sqlbackupfileexplorer.png) 
-2.	Copy the BankPortalDB.bak file to the sqldbs container of the storage account created from the initial deployment. You should assign your Azure account the  ![SQLBU](./images/sqlbackupblob.png) 
+2.	Copy the BankPortalDB.bak file to the sqldbs container of the storage account created from the initial deployment. You should assign your Azure account the Storage Blob Data Contributor role to complete this task.  ![SQLBU](./images/sqlbackupblob.png) 
 3.	In the Azure portal navigate to the SQL Managed Instance resource – **Settings – Microsoft Entra ID** and set the Azure App service’s Managed Identity as the admin. ![Entra](./images/entra.png)   
 4.	In the Azure portal create an **Azure Database Migration Service resource**. The configuration for the resources are shown below: ![DMS](./images/dms.png) ![DMS2](./images/dms2.png)    
 	 
