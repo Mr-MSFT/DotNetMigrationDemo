@@ -32,12 +32,13 @@ This section will give general guidance on backing up a SQL database and restori
 ![SQLBU](./images/sqlbackupblob.png) 
 3.	In the Azure portal navigate to the SQL Managed Instance resource – **Settings – Microsoft Entra ID** and set the Azure App service’s Managed Identity as the admin.    
 ![Entra](./images/entra.png)
-4.	In the Azure portal create an **Azure Database Migration Service resource**. The configuration for the resources are shown below: 
-![DMS](./images/dms.png) 
+4.	In the Azure portal create an **Azure Database Migration Service resource**. The configuration for the resources are shown below:
+![DMS](./images/dms.png)
+
 ![DMS2](./images/dms2.png)    	 
-5.	Navigate to the newly created Azure Database Migration Service resource and start a new migration. 
+6.	Navigate to the newly created Azure Database Migration Service resource and start a new migration. 
 ![DMS3](./images/dms3.png)  
-6.	The migration should be configured as shown detailed below:
+7.	The migration should be configured as shown detailed below:
 a.	**Source server type**: SQL Server
 b.	**Target server type**: Azure SQL Managed Instance
 c.	**Backup file storage location**: Blob storage
@@ -46,5 +47,5 @@ e.	**Is your source SQL Server instance tracked in Azure?** Yes
 f.	The **Select Azure resource that tracks the source SQL Server instance** parameters should be the SQL server instance installed on the deployed VM.
 g.	The **Select migration target** should be the SQL MI deployed by the earlier ARM template. The **Use Managed Identity** option should be selected.
 h.	The **Data source configuration** should be the storage location of the SQL database backup. The Target database name should be **BankPortalDB**
-7.	After the database is restored the demo application should work as expected if a user browses to its URL. 
+8.	After the database is restored the demo application should work as expected if a user browses to its URL. 
 
